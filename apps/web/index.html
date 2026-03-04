@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>IridioGuía</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body>
+  <!-- Checking State -->
+  <div id="loading" class="view active-view">
+    <div class="loader"></div>
+  </div>
+
+  <!-- Desktop Error State -->
+  <div id="desktop-view" class="view">
+    <div class="desktop-card">
+      <h1>Diseñado para Móviles</h1>
+      <p>IridioGuía es una experiencia profunda que requiere la cámara de tu smartphone.</p>
+      <p class="secondary-text">Abre este enlace en tu dispositivo móvil o compártelo.</p>
+
+      <div class="share-actions">
+        <button class="btn btn-secondary" onclick="copyLink()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Copiar Enlace
+        </button>
+        <button class="btn btn-secondary" onclick="emailShare()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          Email
+        </button>
+        <button class="btn btn-secondary" onclick="whatsappShare()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path
+              d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z">
+            </path>
+          </svg>
+          WhatsApp
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div id="error-view" class="view">
+    <div class="error-card">
+      <h1>Acceso Denegado</h1>
+      <p id="error-msg" class="error-text"></p>
+    </div>
+  </div>
+
+  <!-- Mobile Home State -->
+  <div id="mobile-home" class="view">
+    <div class="hero">
+      <h1 class="brand-title">IridioGuía</h1>
+
+      <div class="iris-illustration">
+        <!-- Abstract minimalist SVG representation of an iris -->
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="irisGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+              <stop offset="0%" stop-color="#0B0F14" />
+              <stop offset="25%" stop-color="#1A2430" />
+              <stop offset="60%" stop-color="#2BB3A6" stop-opacity="0.3" />
+              <stop offset="95%" stop-color="#1A2430" />
+              <stop offset="100%" stop-color="#0B0F14" />
+            </radialGradient>
+          </defs>
+          <circle cx="100" cy="100" r="90" fill="url(#irisGrad)" stroke="#1A2430" stroke-width="1" />
+          <circle cx="100" cy="100" r="30" fill="#0B0F14" />
+          <!-- Conceptual structural lines -->
+          <g stroke="#ffffff" stroke-opacity="0.05" stroke-width="0.5">
+            <line x1="10" y1="100" x2="190" y2="100" />
+            <line x1="100" y1="10" x2="100" y2="190" />
+            <line x1="36" y1="36" x2="164" y2="164" />
+            <line x1="36" y1="164" x2="164" y2="36" />
+          </g>
+        </svg>
+      </div>
+
+      <div class="bottom-action">
+        <p class="subtitle">Conecta conscientemente con tu energía a través de tu mirada.</p>
+        <button class="btn btn-primary" onclick="navigateCamera()">Modula tu Campo Energético</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Camera App State -->
+  <div id="camera-view" class="view">
+    <div class="camera-header">
+      <button class="btn-icon" onclick="stopCameraAndHome()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      <span id="camera-step-title">Paso 1: Ojo Izquierdo</span>
+    </div>
+
+    <div id="camera-container">
+      <!-- Live Video feed -->
+      <video id="camera-video" autoplay playsinline></video>
+
+      <!-- UI Overlay -->
+      <div id="camera-overlay">
+        <!-- Branded alignment reticle -->
+        <div class="reticle">
+          <svg viewBox="0 0 100 100" class="reticle-svg">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="var(--accent-teal)" stroke-width="1"
+              stroke-dasharray="4 8" opacity="0.8" />
+            <circle cx="50" cy="50" r="15" fill="none" stroke="var(--accent-teal)" stroke-width="0.5" opacity="0.5" />
+            <!-- Brackets -->
+            <path d="M 20 10 L 10 10 L 10 20" fill="none" stroke="var(--text-main)" stroke-width="2" />
+            <path d="M 80 10 L 90 10 L 90 20" fill="none" stroke="var(--text-main)" stroke-width="2" />
+            <path d="M 20 90 L 10 90 L 10 80" fill="none" stroke="var(--text-main)" stroke-width="2" />
+            <path d="M 80 90 L 90 90 L 90 80" fill="none" stroke="var(--text-main)" stroke-width="2" />
+          </svg>
+        </div>
+        <div class="guidance-text" id="camera-guidance">Alinea tu iris en el centro</div>
+      </div>
+
+      <!-- Controls -->
+      <div class="camera-controls">
+        <button class="capture-btn" id="capture-btn" onclick="capturePhoto()">
+          <div class="capture-btn-inner"></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Preview State overlay -->
+    <div id="preview-container" style="display: none;">
+      <div class="preview-aura"></div>
+      <div class="preview-circle-crop">
+        <img id="preview-img" alt="Vista previa" />
+      </div>
+      <div class="preview-guidance">Verifica que tu iris esté enfocado</div>
+      <div class="preview-controls">
+        <div class="preview-actions">
+          <button class="btn btn-secondary" style="flex: 1;" onclick="retakePhoto()">Tomar de nuevo</button>
+          <button class="btn btn-primary" style="flex: 1;" onclick="confirmPhoto()">Usar esta foto</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden canvas for processing -->
+    <canvas id="camera-canvas" style="display:none;"></canvas>
+  </div>
+
+  <!-- Processing State (Phase 3.5) -->
+  <div id="processing-view" class="view">
+    <div class="processing-symbol">
+      <!-- Reusing the abstract minimalist SVG representation of an iris -->
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width: 150px; height: 150px;">
+        <defs>
+          <radialGradient id="irisGradProcess" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+            <stop offset="0%" stop-color="#0B0F14" />
+            <stop offset="25%" stop-color="#1A2430" />
+            <stop offset="60%" stop-color="#2BB3A6" stop-opacity="0.3" />
+            <stop offset="95%" stop-color="#1A2430" />
+            <stop offset="100%" stop-color="#0B0F14" />
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="90" fill="url(#irisGradProcess)" stroke="#1A2430" stroke-width="1" />
+        <circle cx="100" cy="100" r="30" fill="#0B0F14" />
+        <g stroke="#ffffff" stroke-opacity="0.05" stroke-width="0.5">
+          <line x1="10" y1="100" x2="190" y2="100" />
+          <line x1="100" y1="10" x2="100" y2="190" />
+          <line x1="36" y1="36" x2="164" y2="164" />
+          <line x1="36" y1="164" x2="164" y2="36" />
+        </g>
+      </svg>
+    </div>
+    <h2 class="processing-text"
+      style="margin-top: 40px; font-weight: 300; letter-spacing: 0.1em; color: var(--text-main);">Procesando</h2>
+  </div>
+
+  <!-- Results Grid State (Phase 4) -->
+  <div id="results-view" class="view">
+    <div class="results-header">
+      <h2 class="results-title">Selecciona el desequilibrio que te gustaría trabajar hoy</h2>
+    </div>
+
+    <div id="results-grid" class="imbalance-grid">
+      <!-- JS will populate these tiles based on Gemini JSON -->
+    </div>
+
+    <div class="results-footer">
+      <button class="btn btn-primary" id="btn-generate-audio" disabled onclick="startLyriaStream()">Generar Frecuencias
+        Armonizantes</button>
+    </div>
+  </div>
+
+  <!-- Lyria Player State (Phase 5) -->
+  <div id="player-view" class="view">
+    <div class="hero">
+      <h2 id="player-title" class="results-title" style="margin-bottom: 32px;">Armonizando...</h2>
+
+      <div class="player-visualizer">
+        <!-- Soft glowing animated orb for Lyria output -->
+        <div id="lyria-orb"></div>
+        <p id="player-status" class="secondary-text" style="font-size: 0.9rem; margin-top:24px;">Conectando al campo...
+        </p>
+      </div>
+
+      <div class="bottom-action">
+        <button class="btn btn-secondary" onclick="stopLyriaStream()">Finalizar Sesión Manualmente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Completion State (Phase 6) -->
+  <div id="completion-view" class="view">
+    <div class="completion-card">
+      <h1 class="brand-title">La integración ha finalizado.</h1>
+      <p class="secondary-text" style="font-size: 1.1rem; line-height: 1.6; margin-top:24px;">Gracias por dedicar este
+        espacio a la alineación consciente de tu energía.</p>
+
+      <div style="margin-top: 60px;">
+        <button class="btn btn-secondary" onclick="window.location.reload()">Regresar al Inicio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin State -->
+  <div id="admin-view" class="view">
+    <div class="admin-card">
+      <h1>Generador de Accesos</h1>
+      <p class="secondary-text">Crea un nuevo Magic Link válido por 24 horas (máx 3 dispositivos).</p>
+      <button class="btn btn-primary" onclick="generateLink()">Generar Magic Link</button>
+      <div id="admin-result-container" style="display: none; margin-top: 24px;">
+        <input type="text" id="admin-link-input" readonly />
+        <button class="btn btn-secondary" onclick="copyAdminLink()">Copiar Enlace</button>
+      </div>
+      <p id="admin-error" class="error-text" style="margin-top:16px"></p>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>
