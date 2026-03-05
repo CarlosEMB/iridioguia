@@ -7,16 +7,31 @@ export function setupLyriaProxy(server: any) {
     const wss = new WebSocket.Server({ server, path: '/lyria' });
 
     wss.on('connection', (clientWs, req) => {
-        // 1. Basic auth check natively at connect (in production we'd parse session Token from query/headers)
-        console.log('Frontend connected to Lyria Proxy');
+        // Extract debugId from query parameters
+        const urlParams = new URL(req.url || '', 'http://localhost').searchParams;
+        const debugId = urlParams.get('debugId') || 'unknown';
+        const userAgent = req.headers['user-agent'] || 'unknown';
+
+        const logEvent = (eventName: string, data: any = {}) => {
+            console.log(JSON.stringify({
+                debugId,
+                timestamp: new Date().toISOString(),
+                eventName,
+                ...data
+            }));
+        };
+
+        logEvent('CLIENT_WS_OPEN', { userAgent, apiKeyPresent: !!GEMINI_API_KEY, endpoint: LYRIA_ENDPOINT });
 
         // 2. Open connection to Google Gemini RealTime API
         const googleWsUrl = `${LYRIA_ENDPOINT}?key=${GEMINI_API_KEY}`;
         let googleWs: WebSocket | null = new WebSocket(googleWsUrl);
 
+
         let isSetupComplete = false;
         let pendingGeneration: any = null;
         let lastUpstreamMessage: string = '';
+        let firstChunkReceived = false;
 
         const dispatchGeneration = (payload: any) => {
             const weightedPrompts = payload.weighted_prompts || payload.weightedPrompts || [];
@@ -36,7 +51,8 @@ export function setupLyriaProxy(server: any) {
         };
 
         googleWs.on('open', () => {
-            console.log('Connected to Google Lyria generative endpoint');
+            logEvent('UPSTREAM_WS_OPEN');
+
             // Send initial setup if needed for Lyria
             const setupMsg = {
                 setup: {
@@ -44,6 +60,7 @@ export function setupLyriaProxy(server: any) {
                 }
             };
             googleWs?.send(JSON.stringify(setupMsg));
+            logEvent('UPSTREAM_SETUP_SENT', { payload: setupMsg });
         });
 
         googleWs.on('message', (data: Buffer) => {
@@ -54,30 +71,54 @@ export function setupLyriaProxy(server: any) {
                 const parsed = JSON.parse(dataStr);
                 if (parsed.setupComplete) {
                     isSetupComplete = true;
+                    logEvent('UPSTREAM_SETUP_COMPLETE_RECEIVED');
                     if (pendingGeneration) {
                         dispatchGeneration(pendingGeneration);
                         pendingGeneration = null;
+                    }
+                }
+
+                if (parsed.serverContent && parsed.serverContent.audioChunks && parsed.serverContent.audioChunks.length > 0) {
+                    if (!firstChunkReceived) {
+                        firstChunkReceived = true;
+                        const chunkData = parsed.serverContent.audioChunks[0].data || '';
+                        logEvent('UPSTREAM_FIRST_AUDIO_CHUNK', { chunksAssessed: parsed.serverContent.audioChunks.length, firstChunkBytes: chunkData.length });
+                    }
+                }
+
+                if (parsed.serverContent?.turnComplete) {
+                    logEvent('UPSTREAM_TURN_COMPLETE');
+                    if (clientWs.readyState === WebSocket.OPEN) {
+                        clientWs.close(1000, 'Lyria Turn Complete');
+                    }
+                    if (googleWs?.readyState === WebSocket.OPEN) {
+                        googleWs?.close(1000, 'Turn Complete');
                     }
                 }
             } catch (e) {
                 // Non-JSON or just generic parsing error
             }
 
-            // Pass the raw PCM or JSON chunks straight back to the frontend
-            // The frontend will decode base64 or raw Arrays as WebAudio blocks
+            // Pass the stringified JSON frames straight back to the frontend
             if (clientWs.readyState === WebSocket.OPEN) {
-                clientWs.send(data);
+                clientWs.send(dataStr);
             }
         });
 
         googleWs.on('close', (code, reason) => {
-            console.log(`Google WS closed | Code: ${code} | Reason: ${reason.toString()}`);
-            console.log('Last upstream message before close:', lastUpstreamMessage);
-            if (clientWs.readyState === WebSocket.OPEN) clientWs.close();
+            const reasonStr = reason ? reason.toString() : '';
+            logEvent('UPSTREAM_WS_CLOSE', { code, reason: reasonStr, lastUpstreamMessage });
+            if (clientWs.readyState === WebSocket.OPEN) {
+                if (code === 1000) {
+                    clientWs.close(1000, 'Lyria Generation Complete');
+                } else {
+                    clientWs.close();
+                }
+            }
         });
 
         googleWs.on('error', (err) => {
-            console.error('Google WS error:', err);
+            logEvent('UPSTREAM_WS_ERROR', { error: err.message, stack: err.stack });
             if (clientWs.readyState === WebSocket.OPEN) clientWs.close();
         });
 
@@ -85,7 +126,7 @@ export function setupLyriaProxy(server: any) {
         clientWs.on('message', (message: string) => {
             try {
                 const payload = JSON.parse(message);
-                console.log('Received config from Frontend:', payload);
+                logEvent('CLIENT_PAYLOAD_RECEIVED');
 
                 if (isSetupComplete) {
                     dispatchGeneration(payload);
@@ -97,8 +138,8 @@ export function setupLyriaProxy(server: any) {
             }
         });
 
-        clientWs.on('close', () => {
-            console.log('Frontend disconnected from proxy');
+        clientWs.on('close', (code, reason) => {
+            logEvent('CLIENT_WS_CLOSE', { code, reason: reason ? reason.toString() : '' });
             if (googleWs) {
                 googleWs.close();
                 googleWs = null;

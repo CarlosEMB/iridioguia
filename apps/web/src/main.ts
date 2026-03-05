@@ -336,7 +336,6 @@ function renderImbalances() {
 }
 
 let lyriaStreamer: LyriaStreamer | null = null;
-let lyriaSessionTimer: number | null = null;
 
 function translateScale(scaleEnum?: string): string {
     if (!scaleEnum) return 'Desconocida';
@@ -378,7 +377,7 @@ function extractFrequency(music: any): string {
 
     const freqStr = extractFrequency(selectedItem.music);
     const scaleStr = translateScale(selectedItem.music?.config?.scale || selectedItem.music?.scale);
-    const infoText = freqStr ? `Frecuencia: ${freqStr} | Escala: ${scaleStr}` : `Escala: ${scaleStr}`;
+    const infoText = freqStr ? `Frecuencia: ${freqStr}\nEscala: ${scaleStr}` : `Escala: ${scaleStr}`;
 
     statusText.innerText = infoText;
 
@@ -394,33 +393,17 @@ function extractFrequency(music: any): string {
         if (state === 'stopped' || state === 'error') {
             document.getElementById('lyria-orb')!.classList.remove('playing');
         }
+        if (state === 'completed') {
+            document.getElementById('lyria-orb')!.classList.remove('playing');
+            showView('completion-view');
+        }
     });
 
     // Pass the contract config
     lyriaStreamer.startStream(selectedItem.music);
-
-    // Phase 6: 8-Minute Exact Timer (480,000 ms)
-    const SESSION_DURATION_MS = 8 * 60 * 1000;
-
-    // Clear any previous stray timers
-    if (lyriaSessionTimer) window.clearTimeout(lyriaSessionTimer);
-
-    lyriaSessionTimer = window.setTimeout(async () => {
-        if (lyriaStreamer) {
-            statusText.innerText = 'Cerrando campo y desconectando...';
-            // Slow 8-second fade out
-            await lyriaStreamer.fadeOut(8000);
-            showView('completion-view');
-        }
-    }, SESSION_DURATION_MS);
 };
 
 (window as any).stopLyriaStream = async () => {
-    if (lyriaSessionTimer) {
-        window.clearTimeout(lyriaSessionTimer);
-        lyriaSessionTimer = null;
-    }
-
     if (lyriaStreamer) {
         document.getElementById('player-status')!.innerText = 'Desconectando...';
         await lyriaStreamer.fadeOut(3000); // Faster manual fade
