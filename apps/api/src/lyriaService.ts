@@ -88,12 +88,14 @@ export function setupLyriaProxy(server: any) {
 
                 if (parsed.serverContent?.turnComplete) {
                     logEvent('UPSTREAM_TURN_COMPLETE');
-                    if (clientWs.readyState === WebSocket.OPEN) {
-                        clientWs.close(1000, 'Lyria Turn Complete');
-                    }
-                    if (googleWs?.readyState === WebSocket.OPEN) {
-                        googleWs?.close(1000, 'Turn Complete');
-                    }
+                    setTimeout(() => {
+                        if (clientWs.readyState === WebSocket.OPEN) {
+                            clientWs.close(1000, 'Lyria Turn Complete');
+                        }
+                        if (googleWs?.readyState === WebSocket.OPEN) {
+                            googleWs?.close(1000, 'Turn Complete');
+                        }
+                    }, 25);
                 }
             } catch (e) {
                 // Non-JSON or just generic parsing error
@@ -112,7 +114,7 @@ export function setupLyriaProxy(server: any) {
                 if (code === 1000) {
                     clientWs.close(1000, 'Lyria Generation Complete');
                 } else {
-                    clientWs.close();
+                    clientWs.close(1000, 'Upstream Closed');
                 }
             }
         });

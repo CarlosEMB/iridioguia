@@ -80,7 +80,7 @@ export class LyriaStreamer {
 
             this.ws.onclose = (event) => {
                 console.log(`[Lyria Debug - ${this.debugId}] CLIENT_WS_CLOSE | Code: ${event.code} | Reason: ${event.reason}`);
-                if (event.code === 1000) {
+                if (event.code === 1000 || (this.firstChunkReceived && this.isPlaying)) {
                     this.scheduleCompletion();
                 } else if (!this.isCompleting) {
                     this.stop();
