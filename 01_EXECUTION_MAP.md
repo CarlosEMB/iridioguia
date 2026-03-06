@@ -216,7 +216,7 @@ Single multimodal Gemini call.
 Gemini must return STRICT JSON:
 
 {
-  "imbalances":[4 items]
+  "areas":[4 items]
 }
 
 Each item includes:
@@ -238,7 +238,7 @@ Reject invalid responses.
 
 ### Exit Criteria
 
-2x2 imbalance grid renders from real AI output.
+2x2 area grid renders from real AI output.
 
 --------------------------------------------------
 PHASE 5 — LYRIA REALTIME STREAMING
@@ -289,7 +289,7 @@ Rules:
 
 Show thank-you screen with exact copy.
 
-Button returns to imbalance grid.
+Button returns to area grid.
 
 ### Exit Criteria
 
@@ -340,7 +340,7 @@ IridioGuía is complete when:
 
 1) Magic link access works.
 2) User captures both eyes.
-3) Gemini produces 4 imbalances.
+3) Gemini produces 4 areas or a vision uncertainty error.
 4) User selects one.
 5) Lyria stream plays smoothly.
 6) Playback ends after 8 minutes.

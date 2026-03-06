@@ -20,10 +20,11 @@ const ALLOWED_SCALES = [
 ];
 
 // Reusable schema definition for generationConfig
-const imbalanceSchema = {
+const analysisSchema = {
     type: Type.OBJECT,
     properties: {
-        imbalances: {
+        error: { type: Type.STRING },
+        areas: {
             type: Type.ARRAY,
             items: {
                 type: Type.OBJECT,
@@ -66,25 +67,30 @@ const imbalanceSchema = {
                 required: ["id", "title", "summary", "color", "music"]
             }
         }
-    },
-    required: ["imbalances"]
+    }
+    // We don't enforce "required" at root because it can be either "areas" or "error"
 };
 
 /**
  * Validates the strict rules that JSON Schema alone cannot fully express.
  */
-function validateImbalances(data: any): boolean {
+function validateAnalysis(data: any): boolean {
     try {
-        if (!data || !data.imbalances || !Array.isArray(data.imbalances)) return false;
-        if (data.imbalances.length !== 4) return false;
+        if (!data) return false;
+
+        // If it's a valid error fallback, consider it a success state for the API flow
+        if (data.error && typeof data.error === 'string') return true;
+
+        if (!data.areas || !Array.isArray(data.areas)) return false;
+        if (data.areas.length !== 4) return false;
 
         // Check colors are distinct and match exactly
-        const colors = data.imbalances.map((i: any) => i.color);
+        const colors = data.areas.map((i: any) => i.color);
         const uniqueColors = new Set(colors);
         if (uniqueColors.size !== 4) return false;
 
         // Check Lyria rules
-        for (const item of data.imbalances) {
+        for (const item of data.areas) {
             if (!ALLOWED_SCALES.includes(item.music.config.scale)) return false;
 
             const hasHz = item.music.weighted_prompts.some((p: any) => p.text.includes('Hz'));
@@ -102,7 +108,7 @@ export async function analyzeEyes(leftEyeBuffer: Buffer, rightEyeBuffer: Buffer)
     // 1st Attempt
     let resultJSON = await attemptGeminiCall(leftEyeBuffer, rightEyeBuffer);
 
-    if (resultJSON && validateImbalances(resultJSON)) {
+    if (resultJSON && validateAnalysis(resultJSON)) {
         return resultJSON;
     }
 
@@ -111,7 +117,7 @@ export async function analyzeEyes(leftEyeBuffer: Buffer, rightEyeBuffer: Buffer)
     const retryCorrection = `
     Your previous output violated the schema or business rules. 
     1. Output VALID JSON ONLY matching the schema.
-    2. EXACTLY 4 items. Unique colors.
+    2. EXACTLY 4 areas with unique colors, OR a single error message string.
     3. Use ONLY the provided Scale enum list; do NOT invent scales.
     4. title/summary MUST be Spanish; weighted_prompts MUST be English.
     5. At least one prompt MUST contain "Hz".
@@ -119,11 +125,11 @@ export async function analyzeEyes(leftEyeBuffer: Buffer, rightEyeBuffer: Buffer)
 
     resultJSON = await attemptGeminiCall(leftEyeBuffer, rightEyeBuffer, retryCorrection);
 
-    if (resultJSON && validateImbalances(resultJSON)) {
+    if (resultJSON && validateAnalysis(resultJSON)) {
         return resultJSON;
     }
 
-    throw new Error("Failed to generate valid systemic imbalances after 2 attempts. Please try again.");
+    throw new Error("Failed to generate valid analysis after 2 attempts. Please try again.");
 }
 
 async function attemptGeminiCall(leftEyeBuffer: Buffer, rightEyeBuffer: Buffer, appendInstruction: string = ""): Promise<any | null> {
@@ -158,7 +164,7 @@ async function attemptGeminiCall(leftEyeBuffer: Buffer, rightEyeBuffer: Buffer, 
                 systemInstruction: AI_ROLE_CONTRACT,
                 temperature: 0.6,
                 responseMimeType: "application/json",
-                responseSchema: imbalanceSchema
+                responseSchema: analysisSchema
             }
         });
 

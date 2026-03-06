@@ -92,7 +92,7 @@
       </div>
 
       <div class="bottom-action">
-        <p class="subtitle">Conecta conscientemente con tu energía a través de tu mirada.</p>
+        <p class="subtitle">Conecta conscientemente con tu energía<br />a través de tu mirada.</p>
         <button class="btn btn-primary" onclick="navigateCamera()">Modula tu Campo Energético</button>
       </div>
     </div>
@@ -191,23 +191,26 @@
   <!-- Results Grid State (Phase 4) -->
   <div id="results-view" class="view">
     <div class="results-header">
-      <h2 class="results-title">Selecciona el desequilibrio que te gustaría trabajar hoy</h2>
+      <h2 class="results-title">Selecciona el área de expansión que te gustaría trabajar hoy</h2>
     </div>
 
-    <div id="results-grid" class="imbalance-grid">
+    <div id="results-grid" class="area-grid">
       <!-- JS will populate these tiles based on Gemini JSON -->
     </div>
 
     <div class="results-footer">
       <button class="btn btn-primary" id="btn-generate-audio" disabled onclick="startLyriaStream()">Generar Frecuencias
         Armonizantes</button>
+      <button class="btn btn-secondary" onclick="window.location.reload()">Regresar a Página de Inicio</button>
     </div>
   </div>
 
   <!-- Lyria Player State (Phase 5) -->
   <div id="player-view" class="view">
     <div class="hero">
-      <h2 id="player-title" class="results-title" style="margin-bottom: 32px;">Armonizando...</h2>
+      <h2 class="results-title" style="margin-bottom: 8px;">Armonizando</h2>
+      <p id="player-title" class="secondary-text" style="font-size: 1.15rem; margin-bottom: 32px; font-weight: 300;">
+      </p>
 
       <div class="player-visualizer">
         <!-- Soft glowing animated orb for Lyria output -->

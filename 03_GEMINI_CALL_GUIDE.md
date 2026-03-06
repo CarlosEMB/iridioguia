@@ -6,7 +6,7 @@ Non-negotiable goals:
 - 100% Gemini API (Google AI for Developers), NOT Vertex AI
 - strict JSON output (machine-validated)
 - two images (right + left eye) as multimodal input
-- Spanish for user-facing imbalance text; English for Lyria prompt text
+- Spanish for user-facing area text; English for Lyria prompt text
 - minimal retries, deterministic failure handling
 
 Reference docs (Gemini API only):
@@ -33,7 +33,7 @@ Reference docs (Gemini API only):
 - If 02_AI_ROLE_CONTRACT.md is updated, the runtime prompt must reflect it immediately.
 
 1.4 Language rule
-- Imbalance fields ("title", "summary") MUST be Spanish.
+- Area field ("title", "summary") MUST be Spanish.
 - Lyria prompt fields ("music.weighted_prompts[].text") MUST be English.
 - Do not mix languages inside one field.
 
@@ -86,8 +86,8 @@ Keep schema simple and fully supported:
 
 3.3 Strictness requirements
 Backend MUST validate:
-- top-level object exists
-- "imbalances" length = 4
+- top-level object exists (either contains "areas" or "error")
+- "areas" length = 4 (when present)
 - each color is one of: teal|jade|copper|aubergine (each used once)
 - each "music.config.music_generation_mode" = "QUALITY"
 - each "music.config.scale" ∈ allowed Scale enum list (provided in 02_AI_ROLE_CONTRACT.md)
@@ -171,9 +171,11 @@ Use this as a starting template (adjust types/constraints as needed):
 
 {
   "type": "object",
-  "required": ["imbalances"],
   "properties": {
-    "imbalances": {
+    "error": {
+      "type": "string"
+    },
+    "areas": {
       "type": "array",
       "minItems": 4,
       "maxItems": 4,
@@ -244,8 +246,8 @@ Important:
 Before integrating Lyria:
 - ✅ JSON schema enforcement works (always valid JSON)
 - ✅ Spanish/English split holds
-- ✅ Always 4 imbalances
-- ✅ Each imbalance includes a frequency prompt containing “Hz”
+- ✅ Always 4 areas (or 1 vision uncertainty error)
+- ✅ Each area includes a frequency prompt containing “Hz”
 - ✅ Scale string is present (server enforces allowed values from 02_AI_ROLE_CONTRACT.md)
 
 Then integrate Lyria streaming.

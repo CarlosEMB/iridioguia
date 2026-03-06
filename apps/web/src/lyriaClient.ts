@@ -8,7 +8,11 @@ export class LyriaStreamer {
 
     private debugId: string;
     private firstChunkReceived: boolean = false;
-    private isCompleting: boolean = false;
+    private readonly MAX_SESSION_SEC = 300;
+    private readonly FADE_SEC = 5;
+    private sessionStartTime = 0;
+    private endingIntent = false;
+    private socketClosed = false;
 
     constructor(private wsUrl: string, private onStateChange?: (state: string) => void) {
         this.debugId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
@@ -22,13 +26,18 @@ export class LyriaStreamer {
         try {
             this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: this.sampleRate });
             this.masterGain = this.audioContext.createGain();
+            this.masterGain.gain.value = 0.0001; // Start muted for fade-in
             this.masterGain.connect(this.audioContext.destination);
 
             this.nextPlayTime = this.audioContext.currentTime + 0.2; // Add initial buffer delay
             this.isPlaying = true;
             this.firstChunkReceived = false;
-            this.isCompleting = false;
+            this.endingIntent = false;
+            this.socketClosed = false;
+            this.sessionStartTime = this.audioContext.currentTime;
             this.onStateChange?.('connecting');
+
+            this.checkTimeLoop();
 
             const separator = this.wsUrl.includes('?') ? '&' : '?';
             const connectUrl = `${this.wsUrl}${separator}debugId=${this.debugId}`;
@@ -55,6 +64,13 @@ export class LyriaStreamer {
 
                         if (chunks.length > 0 && !this.firstChunkReceived) {
                             this.firstChunkReceived = true;
+
+                            if (this.audioContext && this.masterGain) {
+                                const now = this.audioContext.currentTime;
+                                this.masterGain.gain.setValueAtTime(0.0001, now);
+                                this.masterGain.gain.linearRampToValueAtTime(1.0, now + 5);
+                            }
+
                             const levelSec = this.nextPlayTime - (this.audioContext?.currentTime || 0);
                             console.log(`[Lyria Debug - ${this.debugId}] UPSTREAM_FIRST_AUDIO_CHUNK length:${chunks[0]?.data?.length || 0} bufferLevelSec:${levelSec.toFixed(2)}`);
                         }
@@ -67,7 +83,6 @@ export class LyriaStreamer {
 
                         if (payload?.serverContent?.turnComplete) {
                             console.log(`[Lyria Debug - ${this.debugId}] Lyria generation turn complete.`);
-                            this.scheduleCompletion();
                         }
                     } catch (e) {
                         console.error(`[Lyria Debug - ${this.debugId}] Failed parsing lyria JSON string:`, e);
@@ -80,11 +95,11 @@ export class LyriaStreamer {
 
             this.ws.onclose = (event) => {
                 console.log(`[Lyria Debug - ${this.debugId}] CLIENT_WS_CLOSE | Code: ${event.code} | Reason: ${event.reason}`);
-                if (event.code === 1000 || (this.firstChunkReceived && this.isPlaying)) {
-                    this.scheduleCompletion();
-                } else if (!this.isCompleting) {
+                this.socketClosed = true;
+
+                if (!this.firstChunkReceived && !this.endingIntent && event.code !== 1000) {
                     this.stop();
-                    this.onStateChange?.('stopped');
+                    this.onStateChange?.('error');
                 }
             };
 
@@ -101,7 +116,12 @@ export class LyriaStreamer {
     }
 
     private async schedulePlayback(base64String: string) {
-        if (!this.audioContext || !this.isPlaying) return;
+        if (!this.audioContext || !this.isPlaying || this.endingIntent) return;
+
+        // Prevent wildly excessive memory buffering past the 5 minute strict cap + 5s buffer
+        if ((this.nextPlayTime - this.sessionStartTime) > (this.MAX_SESSION_SEC + 5)) {
+            return;
+        }
 
         // Decode base64 to Int16 PCM array
         const binaryStr = window.atob(base64String);
@@ -146,57 +166,71 @@ export class LyriaStreamer {
     public async fadeOut(durationMs: number = 3000): Promise<void> {
         return new Promise((resolve) => {
             if (!this.audioContext || !this.masterGain || !this.isPlaying) {
-                this.stop();
                 return resolve();
             }
+            this.endingIntent = true;
 
             const currTime = this.audioContext.currentTime;
             this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, currTime);
             this.masterGain.gain.linearRampToValueAtTime(0, currTime + (durationMs / 1000));
 
             setTimeout(() => {
-                this.stop();
                 resolve();
             }, durationMs + 100);
         });
     }
 
-    private scheduleCompletion() {
-        if (this.isCompleting) return;
-        this.isCompleting = true;
+    private checkTimeLoop() {
+        if (!this.isPlaying || !this.audioContext) return;
 
-        if (!this.audioContext || !this.isPlaying) {
-            this.stop();
-            this.onStateChange?.('stopped');
+        requestAnimationFrame(() => this.checkTimeLoop());
+
+        if (this.endingIntent) return;
+
+        const elapsed = this.audioContext.currentTime - this.sessionStartTime;
+
+        // 1. Hard 5-minute cap reached -> begin fade out
+        if (elapsed >= (this.MAX_SESSION_SEC - this.FADE_SEC)) {
+            this.endingIntent = true;
+            console.log(`[Lyria Debug - ${this.debugId}] Reached 5-minute limit, fading out...`);
+            this.fadeOut(this.FADE_SEC * 1000).then(() => {
+                this.triggerFinalCompletion();
+            });
             return;
         }
 
-        const currentTime = this.audioContext.currentTime;
-        let delaySecs = this.nextPlayTime - currentTime;
-        if (delaySecs < 0) delaySecs = 0;
+        // 2. Socket closed, and we've successfully played all our buffered tail
+        if (this.socketClosed && this.firstChunkReceived) {
+            // Give it a tiny 100ms grace period so we don't trigger prematurely due to float jitter
+            if (this.audioContext.currentTime >= (this.nextPlayTime + 0.1)) {
+                this.endingIntent = true;
+                console.log(`[Lyria Debug - ${this.debugId}] Buffered audio exhausted after socket close. Ending.`);
+                this.triggerFinalCompletion();
+            }
+        }
+    }
 
-        // 1 second after Lyria audio ends
-        const bellDelayMs = (delaySecs + 1.0) * 1000;
+    private triggerFinalCompletion() {
+        if (!this.audioContext) return;
 
-        console.log(`[Lyria Debug - ${this.debugId}] Stream complete cleanly. Queueing bell in ${(bellDelayMs / 1000).toFixed(2)}s`);
+        console.log(`[Lyria Debug - ${this.debugId}] Triggering final completion sequence (Bell + UI).`);
+
+        try {
+            const bell = new Audio('/bell.mp3');
+            bell.play().catch(e => console.error("Could not play bell", e));
+        } catch (ignore) { }
 
         setTimeout(() => {
-            try {
-                const bell = new Audio('/bell.mp3');
-                bell.play().catch(e => console.error("Could not play bell", e));
-            } catch (ignore) { }
-
-            setTimeout(() => {
-                this.stop();
-                this.onStateChange?.('completed');
-            }, 4000); // Wait 4s for bell to finish ringing
-        }, bellDelayMs);
+            this.stop();
+            this.onStateChange?.('completed');
+        }, 4000); // Wait 4s for bell to finish ringing
     }
 
     public stop() {
+        this.endingIntent = true;
         this.isPlaying = false;
         if (this.ws) {
-            this.ws.close();
+            this.ws.close(1000, 'Client stop');
             this.ws = null;
         }
         if (this.audioContext) {

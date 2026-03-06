@@ -12,8 +12,8 @@ let cameraStream: MediaStream | null = null;
 let currentPreviewBlob: Blob | null = null;
 
 // Stores Lyria Config
-let currentImbalances: any[] = [];
-let selectedImbalanceId: string | null = null;
+let currentAreas: any[] = [];
+let selectedAreaId: string | null = null;
 
 // Crude device fingerprint
 function getDeviceHash(): string {
@@ -271,9 +271,14 @@ function stopCamera() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Upload failed');
 
+            // Handle vision uncertainty error natively defined by Gemini
+            if (data.analysis && data.analysis.error) {
+                return showError(data.analysis.error);
+            }
+
             // Phase 4 Result Rendering
-            currentImbalances = data.analysis.imbalances;
-            renderImbalances();
+            currentAreas = data.analysis.areas;
+            renderAreas();
             showView('results-view');
 
         } catch (err: any) {
@@ -288,27 +293,27 @@ function stopCamera() {
 // RESULTS & AUDIO CONFIG (PHASE 4 & 5)
 // --------------------------------------------------
 
-function renderImbalances() {
+function renderAreas() {
     const grid = document.getElementById('results-grid')!;
     grid.innerHTML = '';
-    selectedImbalanceId = null;
+    selectedAreaId = null;
     document.getElementById('btn-generate-audio')!.removeAttribute('disabled');
     (document.getElementById('btn-generate-audio') as HTMLButtonElement).disabled = true;
 
-    currentImbalances.forEach(imbalance => {
+    currentAreas.forEach(area => {
         const tile = document.createElement('div');
-        tile.className = `imbalance-tile tile-color-${imbalance.color}`;
+        tile.className = `area-tile tile-color-${area.color}`;
         tile.innerHTML = `
       <div class="tile-icon"></div>
-      <div class="tile-title">${imbalance.title}</div>
-      <div class="tile-summary">${imbalance.summary}</div>
+      <div class="tile-title">${area.title}</div>
+      <div class="tile-summary">${area.summary}</div>
     `;
 
         tile.addEventListener('click', () => {
             const isExpanded = tile.classList.contains('expanded');
 
             // Reset all tiles
-            document.querySelectorAll('.imbalance-tile').forEach(t => {
+            document.querySelectorAll('.area-tile').forEach(t => {
                 t.classList.remove('selected');
                 t.classList.remove('expanded');
             });
@@ -321,11 +326,11 @@ function renderImbalances() {
                 tile.classList.add('expanded');
                 resultsView.classList.add('modal-active');
 
-                selectedImbalanceId = imbalance.id;
+                selectedAreaId = area.id;
                 (document.getElementById('btn-generate-audio') as HTMLButtonElement).disabled = false;
             } else {
                 // Deselect if already expanded
-                selectedImbalanceId = null;
+                selectedAreaId = null;
                 resultsView.classList.remove('modal-active');
                 (document.getElementById('btn-generate-audio') as HTMLButtonElement).disabled = true;
             }
@@ -361,14 +366,20 @@ function extractFrequency(music: any): string {
     const prompts = music?.weighted_prompts || music?.weightedPrompts;
     if (Array.isArray(prompts)) {
         const freqPrompt = prompts.find((p: any) => typeof p.text === 'string' && p.text.toLowerCase().includes('hz'));
-        if (freqPrompt) return freqPrompt.text;
+        if (freqPrompt) {
+            const match = freqPrompt.text.match(/(\d+(?:\.\d+)?)\s*hz/i);
+            if (match) {
+                return `${match[1]} Hz`;
+            }
+            return freqPrompt.text;
+        }
     }
     return '';
 }
 
 (window as any).startLyriaStream = () => {
-    if (!selectedImbalanceId) return;
-    const selectedItem = currentImbalances.find(i => i.id === selectedImbalanceId);
+    if (!selectedAreaId) return;
+    const selectedItem = currentAreas.find(i => i.id === selectedAreaId);
     if (!selectedItem) return;
 
     showView('player-view');
@@ -380,6 +391,11 @@ function extractFrequency(music: any): string {
     const infoText = freqStr ? `Frecuencia: ${freqStr}\nEscala: ${scaleStr}` : `Escala: ${scaleStr}`;
 
     statusText.innerText = infoText;
+
+    try {
+        const bell = new Audio('/bell.mp3');
+        bell.play().catch(e => console.error("Could not play initial bell", e));
+    } catch (ignore) { }
 
     if (lyriaStreamer) {
         lyriaStreamer.stop();
